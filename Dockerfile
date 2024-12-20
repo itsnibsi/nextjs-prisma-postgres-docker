@@ -8,7 +8,7 @@ RUN npm ci
 
 # Copy source files
 COPY prisma ./prisma/
-COPY next.config.js ./
+COPY next.config.ts ./
 COPY tsconfig.json ./
 COPY public ./public/
 COPY app ./app/

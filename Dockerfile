@@ -2,17 +2,19 @@
 FROM node:18-alpine AS builder
 WORKDIR /app
 
-# Copy package files and install dependencies
+# Copy package files first (better layer caching)
 COPY package*.json ./
+RUN npm ci
+
+# Copy source files
 COPY prisma ./prisma/
 COPY next.config.js ./
 COPY tsconfig.json ./
-COPY src ./src/
 COPY public ./public/
 COPY app ./app/
+COPY lib ./lib/
 
-# Install dependencies and generate Prisma client
-RUN npm ci
+# Ggenerate Prisma client
 RUN npx prisma generate
 
 # Build Next.js application
@@ -23,16 +25,23 @@ FROM node:18-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV DATABASE_URL=""
 ENV PORT=3000
 
+# Add non-root user for security
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+USER nextjs
+
 # Copy necessary files from builder
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+
+# Expose port
+EXPOSE 3000
 
 # Start the application
 CMD ["node", "server.js"]
